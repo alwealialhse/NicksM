@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus - إدارة عالم الأنمي</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        body { background-color: #0d1117; color: white; margin: 0; font-family: sans-serif; padding-bottom: 60px; }
+        .header-bar { background:#161b22; padding:15px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #30363d; position: sticky; top: 0; z-index: 100; }
+        
+        /* إعدادات المستخدم والاسم */
+        .admin-panel { background: #1c2128; padding: 10px; border-bottom: 1px solid #30363d; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
+        .name-input { background: #0d1117; border: 1px solid #58a6ff; color: white; padding: 8px; border-radius: 8px; width: 180px; text-align: center; outline: none; }
+
+        .create-post-card { background: #161b22; border: 1px solid #30363d; border-radius: 15px; margin: 20px auto; padding: 15px; max-width: 500px; width: 90%; }
+        .post-input { width: 100%; background: #0d1117; border: 1px solid #30363d; color: white; padding: 12px; border-radius: 10px; resize: none; outline: none; margin-bottom: 10px; }
+        .publish-btn { background: #238636; color: white; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .publish-btn:hover { background: #2ea043; }
+        
+        .feed { max-width: 500px; margin: 0 auto; }
+        .post { background: #161b22; border: 1px solid #30363d; border-radius: 15px; padding: 15px; margin-bottom: 20px; position: relative; }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .post-header img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #58a6ff; }
+        .post-content { line-height: 1.5; margin-bottom: 10px; word-wrap: break-word; }
+        .post-img { max-width: 100%; border-radius: 10px; margin-top: 10px; }
+        
+        /* تذييل المنشور والأزرار */
+        .post-footer { display: flex; gap: 15px; border-top: 1px solid #30363d; padding-top: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .action-item { cursor: pointer; color: #8b949e; font-size: 13px; transition: 0.2s; display: flex; align-items: center; gap: 4px; }
+        .action-item:hover { color: #58a6ff; }
+        .admin-btn { color: #f85149 !important; font-weight: bold; border: 1px solid #f85149; padding: 2px 8px; border-radius: 5px; margin-right: auto; }
+        .admin-btn:hover { background: #f85149; color: white !important; }
+    </style>
+</head>
+<body>
+
+    <header class="header-bar">
+        <div style="color:#58a6ff; font-weight:bold; font-size:22px;">NEXUS</div>
+        <button onclick="window.location.href='rooms-menu.html'" style="background:#21262d; color:white; border:1px solid #30363d; padding:5px 15px; border-radius:8px; cursor:pointer;">غرف الدردشة 💬</button>
+    </header>
+
+    <div class="admin-panel">
+        <span>هويتك الحالية: </span>
+        <input type="text" id="user-display-name" class="name-input" placeholder="اكتب اسمك هنا..." onchange="updateIdentity()">
+    </div>
+
+    <section class="create-post-card">
+        <textarea id="post-text" class="post-input" rows="3" placeholder="ماذا يدور في ذهنك يا بطل؟"></textarea>
+        <div id="image-preview-container"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="color: #58a6ff; cursor: pointer; font-size: 14px;">
+                📷 إرفاق صورة <input type="file" id="post-image" accept="image/*" style="display:none" onchange="previewPostImage(event)">
+            </label>
+            <button class="publish-btn" onclick="createNewPost()">نشر في السحاب 🚀</button>
+        </div>
+    </section>
+
+    <div id="post-feed" class="feed"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBn5lhXP6mK7wCTixhSEqEeC9BDG-8McY",
+            authDomain: "nicksm-c6c71.firebaseapp.com",
+            projectId: "nicksm-c6c71",
+            storageBucket: "nicksm-c6c71.firebasestorage.app",
+            messagingSenderId: "512971642548",
+            appId: "1:512971642548:web:ad8c925cc6f5d20e6f29e1"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let selectedImageData = null;
+
+        // استعادة الاسم المحفوظ
+        let myName = localStorage.getItem('nexus_username') || "NicksM";
+        document.getElementById('user-display-name').value = myName;
+
+        function updateIdentity() {
+            myName = document.getElementById('user-display-name').value;
+            localStorage.setItem('nexus_username', myName);
+            console.log("تم تحديث الاسم إلى: " + myName);
+        }
+
+        function previewPostImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    selectedImageData = e.target.result;
+                    document.getElementById('image-preview-container').innerHTML = `<img src="${selectedImageData}" style="max-width:100%; border-radius:10px; margin-bottom:10px; border:1px solid #30363d;">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function createNewPost() {
+            const text = document.getElementById('post-text').value;
+            if (!text.trim() && !selectedImageData) return;
+
+            try {
+                await db.collection("posts").add({
+                    username: myName,
+                    content: text,
+                    image: selectedImageData,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                document.getElementById('post-text').value = "";
+                document.getElementById('image-preview-container').innerHTML = "";
+                selectedImageData = null;
+            } catch (e) { alert("حدث خطأ في النشر!"); }
+        }
+
+        // جلب المنشورات وحظر المستخدمين
+        db.collection("posts").orderBy("timestamp", "desc").onSnapshot((snapshot) => {
+            const feed = document.getElementById('post-feed');
+            feed.innerHTML = ""; 
+            snapshot.forEach((doc) => {
+                const post = doc.data();
+                const postId = doc.id;
+                const postDiv = document.createElement('div');
+                postDiv.className = 'post';
+
+                postDiv.innerHTML = `
+                    <div class="post-header">
+                        <img src="../assets/icons/user-avatar.png">
+                        <div><b>${post.username}</b></div>
+                    </div>
+                    <div class="post-content">${post.content}</div>
+                    ${post.image ? `<img src="${post.image}" class="post-img">` : ''}
+                    
+                    <div class="post-footer">
+                        <span class="action-item">❤️ إعجاب</span>
+                        <span class="action-item">💬 تعليق</span>
+                        
+                        <span class="action-item admin-btn" onclick="banUser('${post.username}', '${postId}')">حظر وحذف 🚫</span>
+                    </div>
+                `;
+                feed.appendChild(postDiv);
+            });
+        });
+
+        // وظيفة الحظر (تحذف المنشور وتطلب تأكيد الحظر)
+        async function banUser(targetUser, postId) {
+            const confirmBan = confirm(`هل أنت متأكد من حظر المستخدم "${targetUser}" وحذف هذا المنشور؟`);
+            if (confirmBan) {
+                try {
+                    // حذف المنشور المحدد
+                    await db.collection("posts").doc(postId).delete();
+                    alert(`تم حذف منشور ${targetUser}. يمكنك الآن إضافة اسمه لقائمة المحظورين في الإعدادات.`);
+                } catch (e) { alert("فشل في الحذف، تأكد من صلاحيات Firebase."); }
+            }
+        }
+    </script>
+</body>
+</html>
